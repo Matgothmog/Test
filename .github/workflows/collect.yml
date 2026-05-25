@@ -32,7 +32,7 @@ jobs:
           cache: pip
 
       - name: Install deps
-        run: pip install --quiet "pandas>=2,<3" pyarrow requests
+        run: pip install --quiet -r requirements.txt
 
       - name: Run collector
         id: collect
