@@ -1,0 +1,62 @@
+name: hourly-portfolio-snapshot
+
+on:
+  schedule:
+    # Every hour at minute 7 (off-the-hour to avoid contention with other people's :00 cron jobs)
+    - cron: "7 * * * *"
+  workflow_dispatch: {}    # allow manual trigger from the Actions tab
+
+# Required for the workflow to commit the updated parquet back to the repo
+permissions:
+  contents: write
+
+concurrency:
+  group: portfolio-snapshot
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install --quiet "pandas>=2,<3" pyarrow requests
+
+      - name: Run collector
+        id: collect
+        run: python collector.py
+        # If the script exits non-zero, the workflow fails and GitHub emails the repo owner.
+
+      - name: Commit & push if data changed
+        run: |
+          git config user.name  "hl-collector[bot]"
+          git config user.email "hl-collector[bot]@users.noreply.github.com"
+          git add data/portfolios.parquet data/wallets.json data/status.json 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "no changes to commit"
+            exit 0
+          fi
+          # Use the run number + UTC time in commit message so monitoring is easy
+          git commit -m "snapshot: run #${{ github.run_number }} @ $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
+
+      - name: Optional Discord alert on failure
+        if: failure()
+        run: |
+          if [ -n "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            curl -X POST -H "Content-Type: application/json" \
+              -d "{\"content\":\"❌ HL collector failed: run #${{ github.run_number }} — see https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              "${{ secrets.DISCORD_WEBHOOK }}"
+          fi
