@@ -1,0 +1,35 @@
+name: whale-watcher
+
+on:
+  schedule:
+    # Every 15 minutes (at :03 and :18 and :33 and :48 — offset from the portfolio collector at :07 and :37)
+    - cron: "3,18,33,48 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: whale-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1, token: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install --quiet -r requirements.txt
+      - name: Snapshot whale positions
+        run: python whale_watch.py
+      - name: Commit if changed
+        run: |
+          git config user.name  "hl-whale-watch[bot]"
+          git config user.email "hl-whale-watch[bot]@users.noreply.github.com"
+          git add data/whale12_positions.parquet data/whale12_status.json 2>/dev/null || true
+          if git diff --staged --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "whale-watch: snap #${{ github.run_number }} @ $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
