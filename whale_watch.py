@@ -46,6 +46,22 @@ def snap_positions() -> tuple[pd.DataFrame, dict]:
     cs = info({"type": "clearinghouseState", "user": WHALE})
     acc_val = float(cs["marginSummary"]["accountValue"])
     withdrawable = float(cs.get("withdrawable", 0))
+
+    # Also pull current funding rates per coin so we know whether whale is
+    # receiving or paying funding on each leg right now
+    funding_by_coin = {}
+    try:
+        meta_ctxs = info({"type": "metaAndAssetCtxs"})
+        meta = meta_ctxs[0]
+        ctxs = meta_ctxs[1]
+        for u, ctx in zip(meta["universe"], ctxs):
+            try:
+                funding_by_coin[u["name"]] = float(ctx.get("funding", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        pass  # funding columns will be NaN
+
     rows = []
     for p in cs.get("assetPositions", []):
         pp = p.get("position", {})
@@ -62,13 +78,29 @@ def snap_positions() -> tuple[pd.DataFrame, dict]:
             roe = float(pp.get("returnOnEquity", 0) or 0)
         except (TypeError, ValueError):
             continue
+        coin = pp.get("coin", "")
+        direction = 1 if sz > 0 else -1
+        # Funding: positive rate = longs pay shorts
+        # Whale's per-hour funding $: -rate * pos_val * direction
+        # (long with positive rate => negative income; short with positive rate => positive income)
+        fund_rate = funding_by_coin.get(coin)
+        if fund_rate is not None:
+            fund_per_hour_usd = -fund_rate * pos_val * direction
+            fund_per_day_usd = fund_per_hour_usd * 24
+            fund_apr_for_whale_pct = -fund_rate * direction * 24 * 365 * 100
+        else:
+            fund_per_hour_usd = fund_per_day_usd = fund_apr_for_whale_pct = None
         rows.append({
-            "snap_t": now, "coin": pp.get("coin", ""),
-            "direction": 1 if sz > 0 else -1, "size_abs": abs(sz),
+            "snap_t": now, "coin": coin,
+            "direction": direction, "size_abs": abs(sz),
             "entry_px": entry_px, "position_value": pos_val,
             "margin_used": margin, "unrealized_pnl": upnl,
             "return_on_equity": roe,
             "liq_px": pp.get("liquidationPx") or None,
+            "funding_rate_per_hour": fund_rate,
+            "funding_per_hour_usd": fund_per_hour_usd,    # >0 = whale receives
+            "funding_per_day_usd": fund_per_day_usd,
+            "funding_apr_for_whale_pct": fund_apr_for_whale_pct,
         })
     df = pd.DataFrame(rows)
     status = {
@@ -80,10 +112,23 @@ def snap_positions() -> tuple[pd.DataFrame, dict]:
         "n_long": int((df["direction"] > 0).sum()) if not df.empty else 0,
         "n_short": int((df["direction"] < 0).sum()) if not df.empty else 0,
         "total_unrealized_pnl": float(df["unrealized_pnl"].sum()) if not df.empty else 0,
+        # Funding aggregates (per current rates × current notional)
+        "total_funding_per_day_usd": (float(df["funding_per_day_usd"].sum())
+                                       if not df.empty and df["funding_per_day_usd"].notna().any() else None),
+        "n_positions_receiving_funding": (int((df["funding_per_day_usd"] > 0).sum())
+                                           if not df.empty and df["funding_per_day_usd"].notna().any() else None),
+        "n_positions_paying_funding": (int((df["funding_per_day_usd"] < 0).sum())
+                                        if not df.empty and df["funding_per_day_usd"].notna().any() else None),
         "biggest_winner": (df.loc[df["unrealized_pnl"].idxmax()].to_dict()
                             if not df.empty and (df["unrealized_pnl"] > 0).any() else None),
         "biggest_loser": (df.loc[df["unrealized_pnl"].idxmin()].to_dict()
                           if not df.empty and (df["unrealized_pnl"] < 0).any() else None),
+        "worst_funding_drain": (df.loc[df["funding_per_day_usd"].idxmin()].to_dict()
+                                 if not df.empty and df["funding_per_day_usd"].notna().any()
+                                 and (df["funding_per_day_usd"] < 0).any() else None),
+        "best_funding_income": (df.loc[df["funding_per_day_usd"].idxmax()].to_dict()
+                                 if not df.empty and df["funding_per_day_usd"].notna().any()
+                                 and (df["funding_per_day_usd"] > 0).any() else None),
     }
     return df, status
 
