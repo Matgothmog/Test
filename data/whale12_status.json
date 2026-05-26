@@ -1,34 +1,34 @@
 {
-  "snap_utc": "2026-05-26T19:40:23.423602+00:00",
-  "snap_t_ms": 1779824422878,
-  "account_value": 3315135.855112,
+  "snap_utc": "2026-05-26T19:49:43.260359+00:00",
+  "snap_t_ms": 1779824983015,
+  "account_value": 3320960.875967,
   "withdrawable": 0.0,
   "n_positions": 23,
   "n_long": 6,
   "n_short": 17,
-  "total_unrealized_pnl": 8257847.219367001,
+  "total_unrealized_pnl": 8263672.240222,
   "biggest_winner": {
-    "snap_t": 1779824422878,
+    "snap_t": 1779824983015,
     "coin": "HYPE",
     "direction": 1,
     "size_abs": 78076.29,
     "entry_px": 27.1949,
-    "position_value": 4736966.59059,
-    "margin_used": 1578988.86353,
-    "unrealized_pnl": 2613688.138484,
-    "return_on_equity": 3.6929044364,
-    "liq_px": NaN
+    "position_value": 4740480.02364,
+    "margin_used": 1580160.00788,
+    "unrealized_pnl": 2617201.571534,
+    "return_on_equity": 3.6978685988,
+    "liq_px": null
   },
   "biggest_loser": {
-    "snap_t": 1779824422878,
+    "snap_t": 1779824983015,
     "coin": "AAVE",
     "direction": 1,
     "size_abs": 4741.74,
     "entry_px": 152.6925,
-    "position_value": 408496.15926,
-    "margin_used": 40849.615926,
-    "unrealized_pnl": -315532.330937,
-    "return_on_equity": -4.358009874,
-    "liq_px": NaN
+    "position_value": 410032.48302,
+    "margin_used": 41003.248302,
+    "unrealized_pnl": -313996.007177,
+    "return_on_equity": -4.3367907676,
+    "liq_px": null
   }
 }
