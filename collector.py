@@ -23,12 +23,13 @@ INFO_URL = "https://api.hyperliquid.xyz/info"
 LB_URL = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard"
 
 # Tracked-wallet selection rule.
-# Policy is ADDITIVE: once we add a wallet, we never drop it (avoids survivorship
-# bias in downstream backtests). The leaderboard's daily top-N seeds new entries
-# until we hit MAX_TRACKED, after which the universe is locked.
-TOP_N_ALLTIME = 150              # daily top-N from leaderboard to seed new entries
+# The wallets.json was seeded externally (by the all-regime-consistency selector)
+# with ~794 hand-picked consistently-winning wallets. The leaderboard daily refresh
+# below only ADDS new wallets that newly meet criteria — existing entries are never
+# dropped (avoids survivorship bias).
+TOP_N_ALLTIME = 150              # additive seed from daily leaderboard top-N
 MIN_WEEK_VLM = 1_000_000         # require recent activity ≥$1M weekly volume
-MAX_TRACKED = 300                # hard cap on tracked universe (bounds runtime)
+MAX_TRACKED = 1500               # hard cap on tracked universe (~12 min runtime at 1500)
 
 DATA_DIR = Path(__file__).parent / "data"
 OUT_PATH = DATA_DIR / "portfolios.parquet"
