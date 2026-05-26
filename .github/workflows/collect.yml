@@ -2,8 +2,10 @@ name: hourly-portfolio-snapshot
 
 on:
   schedule:
-    # Every hour at minute 7 (off-the-hour to avoid contention with other people's :00 cron jobs)
-    - cron: "7 * * * *"
+    # Every 30 minutes (at :07 and :37). GitHub aggressively throttles scheduled
+    # workflows on free tier; doubling the rate compensates for skipped runs while
+    # staying well under the 2,000 min/mo private-repo quota (~44 min/month total).
+    - cron: "7,37 * * * *"
   workflow_dispatch: {}    # allow manual trigger from the Actions tab
 
 # Required for the workflow to commit the updated parquet back to the repo
