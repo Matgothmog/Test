@@ -32,4 +32,17 @@ jobs:
           git add data/whale12_positions.parquet data/whale12_status.json 2>/dev/null || true
           if git diff --staged --quiet; then echo "no changes"; exit 0; fi
           git commit -m "whale-watch: snap #${{ github.run_number }} @ $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push
+          # Race-safe push: portfolio-snapshot writes a disjoint file set
+          # (portfolios.parquet/wallets.json/status.json) → rebase is always
+          # a clean fast-forward when our push loses the race.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "push ok on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) — rebasing onto origin/main and retrying"
+            git pull --rebase --autostash origin main
+            sleep $((attempt * 2))
+          done
+          echo "push still failing after 5 attempts — giving up"
+          exit 1

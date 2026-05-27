@@ -52,7 +52,22 @@ jobs:
           fi
           # Use the run number + UTC time in commit message so monitoring is easy
           git commit -m "snapshot: run #${{ github.run_number }} @ $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push
+          # Race-safe push: the whale-watcher workflow commits to the same branch
+          # on a tighter cadence. If our push is rejected as non-fast-forward,
+          # rebase onto the latest origin/main and retry. Disjoint file sets
+          # (portfolio writes portfolios.parquet/wallets.json/status.json; whale
+          # writes whale12_*.{parquet,json}) → rebase is always a clean fast-forward.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "push ok on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) — rebasing onto origin/main and retrying"
+            git pull --rebase --autostash origin main
+            sleep $((attempt * 2))
+          done
+          echo "push still failing after 5 attempts — giving up"
+          exit 1
 
       - name: Optional Discord alert on failure
         if: failure()
