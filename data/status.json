@@ -1,9 +1,9 @@
 {
-  "last_run_utc": "2026-05-27T12:36:54.196803+00:00",
+  "last_run_utc": "2026-05-27T16:32:25.161963+00:00",
   "n_wallets_polled": 794,
   "n_wallets_ok": 794,
   "n_wallets_fail": 0,
-  "total_rows": 435691,
-  "rows_added_this_run": 15026,
-  "elapsed_sec": 344.7
+  "total_rows": 451251,
+  "rows_added_this_run": 15560,
+  "elapsed_sec": 344.3
 }
