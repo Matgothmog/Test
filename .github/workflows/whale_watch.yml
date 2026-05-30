@@ -29,7 +29,8 @@ jobs:
         run: |
           git config user.name  "hl-whale-watch[bot]"
           git config user.email "hl-whale-watch[bot]@users.noreply.github.com"
-          git add data/whale12_positions.parquet data/whale12_status.json 2>/dev/null || true
+          git add data/whale12_positions.parquet data/whale12_status.json \
+                  data/whale_7fdafde_positions.parquet data/whale_7fdafde_status.json 2>/dev/null || true
           if git diff --staged --quiet; then echo "no changes"; exit 0; fi
           git commit -m "whale-watch: snap #${{ github.run_number }} @ $(date -u +%Y-%m-%dT%H:%MZ)"
           # Race-safe push: portfolio-snapshot writes a disjoint file set

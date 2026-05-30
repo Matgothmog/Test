@@ -18,10 +18,20 @@ import pandas as pd
 from pathlib import Path
 
 INFO_URL = "https://api.hyperliquid.xyz/info"
-WHALE = "0x8af700ba841f30e0a3fcb0ee4c4a9d223e1efa05"
 DATA_DIR = Path(__file__).parent / "data"
-OUT = DATA_DIR / "whale12_positions.parquet"
-STATUS = DATA_DIR / "whale12_status.json"
+
+# Track multiple whales. Each (name, address) gets its own pair of output files:
+#   data/<name>_positions.parquet  (per-snapshot position rows)
+#   data/<name>_status.json        (latest run summary)
+WHALES = [
+    ("whale12",         "0x8af700ba841f30e0a3fcb0ee4c4a9d223e1efa05"),  # original mirror source
+    ("whale_7fdafde",   "0x7fdafde5cfb5465924316eced2d3715494c517d1"),  # new candidate, $168M allTime, 28 positions
+]
+
+# Backward-compat aliases (old code paths used these for whale12 only)
+WHALE = WHALES[0][1]
+OUT = DATA_DIR / f"{WHALES[0][0]}_positions.parquet"
+STATUS = DATA_DIR / f"{WHALES[0][0]}_status.json"
 
 UA = "hl-whale-watcher/1.0 (GitHub Actions)"
 
@@ -41,9 +51,9 @@ def info(payload: dict, retries: int = 6, backoff: float = 1.5):
     raise RuntimeError("info() exhausted")
 
 
-def snap_positions() -> tuple[pd.DataFrame, dict]:
+def snap_positions(whale_addr: str = WHALE) -> tuple[pd.DataFrame, dict]:
     now = int(time.time() * 1000)
-    cs = info({"type": "clearinghouseState", "user": WHALE})
+    cs = info({"type": "clearinghouseState", "user": whale_addr})
     acc_val = float(cs["marginSummary"]["accountValue"])
     withdrawable = float(cs.get("withdrawable", 0))
 
@@ -133,32 +143,35 @@ def snap_positions() -> tuple[pd.DataFrame, dict]:
     return df, status
 
 
-def main():
-    DATA_DIR.mkdir(exist_ok=True)
-    df_new, status = snap_positions()
-    print(f"[whale-watch] snap: {status['n_positions']} positions, "
+def snap_one(name: str, addr: str) -> None:
+    out_path = DATA_DIR / f"{name}_positions.parquet"
+    status_path = DATA_DIR / f"{name}_status.json"
+    df_new, status = snap_positions(addr)
+    print(f"[{name}] snap: {status['n_positions']} positions, "
           f"acct=${status['account_value']:,.0f}, "
           f"sum uPnL=${status['total_unrealized_pnl']:+,.0f}", flush=True)
-
     if df_new.empty:
-        print("[whale-watch] no positions returned — exiting without write"); return
-
-    if OUT.exists():
-        existing = pd.read_parquet(OUT)
+        print(f"[{name}] no positions returned — skip write"); return
+    if out_path.exists():
+        existing = pd.read_parquet(out_path)
         combined = pd.concat([existing, df_new], ignore_index=True)
-        before = len(combined)
         combined = combined.drop_duplicates(["snap_t", "coin"]).sort_values(["snap_t", "coin"])
-        after = len(combined)
-        added = after - len(existing)
+        added = len(combined) - len(existing)
     else:
         combined = df_new
         added = len(df_new)
+    combined.to_parquet(out_path, index=False)
+    status_path.write_text(json.dumps(status, indent=2, default=str))
+    print(f"[{name}] parquet now {len(combined):,} rows ({added:+} from this run)")
 
-    combined.to_parquet(OUT, index=False)
-    print(f"[whale-watch] parquet now {len(combined):,} rows ({added:+} from this run)")
 
-    STATUS.write_text(json.dumps(status, indent=2, default=str))
-    print(f"[whale-watch] wrote status to {STATUS}")
+def main():
+    DATA_DIR.mkdir(exist_ok=True)
+    for name, addr in WHALES:
+        try:
+            snap_one(name, addr)
+        except Exception as e:
+            print(f"[{name}] FAIL: {e}", flush=True)
 
 
 if __name__ == "__main__":
